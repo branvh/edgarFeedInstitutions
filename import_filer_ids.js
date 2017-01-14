@@ -3,18 +3,17 @@ const mysql = require("mysql");
 const fs = require("fs");
 const appKey = 'q9kxwxqjayeqmqwg3ffphupa';
 const writeFile = '13fList.csv';
-const totalFields = 4230;  //# records as of jan 13, 2017
+const totalFields = 4230; //# records as of jan 13, 2017
 const limit = 999;
 let apiRuns = Math.ceil(totalFields / limit);
 let offset = 0;
 
-
-//================================CONNECT TO DB===================================================================
+//================================DB INFO===================================================================
 const DB = 'fund_holdings';
 const TABLE = 'filer_ids';
-const PASS = 'lemonkiwi958';
+const PASS = 'MGoblue3!';
 
-let con = mysql.createConnection({
+let sqlDetails = {
 
     host: 'localhost',
     port: 3306,
@@ -22,14 +21,7 @@ let con = mysql.createConnection({
     password: PASS,
     database: DB
 
-});
-
-con.connect((err) => {
-
-    if (err) throw err;
-
-});
-
+};
 //================================FUNCTIONS========================================================================
 
 
@@ -43,7 +35,7 @@ const makeApiArray = () => {
 
         offset = limit * i;
 
-        url = 'http://edgaronline.api.mashery.com/v2/descriptions/ownership-currentissueholders/filerid?limit='+limit+'&offset='+offset+'&sortDirection=asc&appkey='+appKey;
+        url = 'http://edgaronline.api.mashery.com/v2/descriptions/ownership-currentissueholders/filerid?limit=' + limit + '&offset=' + offset + '&sortDirection=asc&appkey=' + appKey;
 
         queryStrings.push(url);
 
@@ -57,87 +49,91 @@ const makeApiArray = () => {
 //and capture data
 const dataRequest = (query) => {
 
-	return new Promise((resolve, reject) => {
+    return new Promise((resolve, reject) => {
 
-		request(query, (error, response, body) => {
+        request(query, (error, response, body) => {
 
-			if (error) {
-				reject(error);
-			}
-			else {
-				resolve(body);
-			}
+            if (error) {
+                reject(error);
+            } else {
+                resolve(body);
+            }
 
-		})
+        })
 
-	})
+    })
 
 }
-
-//function to control the generator
-let queryArray = makeApiArray();
 
 //console.log(queryArray);
 
 //input an array, iterate api requests for each...avoids hitting API limits for consecutive data requests....have to do multiple
 //due to only being allowed 999 items in a given api response
-function *requestGenerator () {
+function* requestGenerator() {
 
-	let data = [];
-	for (let i = 0; i < apiRuns; i++){
+    let data = [];
+    for (let i = 0; i < apiRuns; i++) {
 
-		data = yield dataRequest(queryArray[i]);
+        data = yield dataRequest(queryArray[i]);
         if (data !== undefined) {
-        console.log('received data for yield ' + i);
-        data = JSON.parse(data);
-        data = data.descriptions;
-        //data = data.join(',');
-        // console.log(data);
+            console.log('received data for yield ' + i);
+            data = JSON.parse(data);
+            data = data.descriptions;
+            data = data.join('),(');
+            data = '(' + data + ');';
+            console.log(typeof(data));
+            console.log('insert into filer_ids (filer) values ' + data);
 
-     //++++++++++++++ I WANT TO DO IT THIS WAY............... BULK UPLOAD........................
-        
-        //   con.query('insert into filer_ids (filer) values ' + data, function(err, res) {
-        //     console.log("Your input was successful!");
-        // });  
+            //BULK UPLOAD........................
 
-    //+++++++++++++++++++++++++++++   I DON'T WANT TO INSERT THIS WAY - IT IS WAY TOO SLOW ==========
-    
-        data.forEach((cur, ind) => {
-        con.query('insert into filer_ids set ?', {filer: cur}, function(err, res) {
-            console.log("Your input was successful!");
-        });     
-    });
+            con.query('insert into filer_ids (filer) values ' + data, function(err, res) {
+                if (err) {
+                    throw err;
+                } else {
+                    console.log("Your input was successful!");
+                }
+                con.end();
+            });
 
-	}
-}
+        }
+    }
 
 }
 
 function runGenerator(g) {
-    var it = g(), ret;
+    var it = g(),
+        ret;
 
     // asynchronously iterate over generator
-    (function iterate(val){
-        ret = it.next( val );
+    (function iterate(val) {
+        ret = it.next(val);
 
         if (!ret.done) {
             // poor man's "is it a promise?" test
             if ("then" in ret.value) {
                 // wait on the promise
-                ret.value.then( iterate );
+                ret.value.then(iterate);
             }
             // immediate value: just send right back in
             else {
                 // avoid synchronous recursion
-                setTimeout( function(){
-                    iterate( ret.value );
-                }, 0 );
+                setTimeout(function() {
+                    iterate(ret.value);
+                }, 0);
             }
         }
     })();
 }
 
-runGenerator(requestGenerator);
+//function to control the generator
+let queryArray = makeApiArray();
 
-//close db connection
-con.end();
+//====================RUN THE PROGRAM....IMPORT DATA AND WRITE TO DB============================
+
+let con = mysql.createConnection(sqlDetails);
+
+con.connect(function(err, callback) {
+
+    runGenerator(requestGenerator);
+
+});

@@ -17,9 +17,13 @@ create table filer_ids(
     primary key(filer)
 );
 
+
+
 drop table thirteen_f;
 select * from thirteen_f;
 
 drop table filer_ids;
 select * from filer_ids;
+
+insert into filer_ids (filer) values (753466),(753721),(753755);
 
