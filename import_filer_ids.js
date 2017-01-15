@@ -45,7 +45,7 @@ const makeApiArray = () => {
 
 }
 
-//upon resolution of the promise - e.g. the api responses with data - the iterator above will move on to the next request 
+//upon resolution of the promise - e.g. the api responses with data - the iterator above will move on to the next request
 //and capture data
 const dataRequest = (query) => {
 
